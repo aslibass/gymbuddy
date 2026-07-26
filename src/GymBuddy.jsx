@@ -39,8 +39,10 @@ export function GymBuddy() {
   const [accent, setAccent] = useState('#5AA9E6');
   const [showCues, setShowCues] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [sessionDay, setSessionDay] = useState(null);
 
-  // Load from localStorage
+  const dayKey = new Date().toISOString().slice(0, 10);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem(KEY);
@@ -48,6 +50,8 @@ export function GymBuddy() {
         const s = JSON.parse(raw);
         setLog(s.log || {});
         setBumps(s.bumps || {});
+        setWeek(s.week || 4);
+        setSessionDay(s.sessionDay || null);
       }
     } catch (e) {}
   }, []);
@@ -55,19 +59,24 @@ export function GymBuddy() {
   const save = (patch) => {
     const newLog = patch.log ?? log;
     const newBumps = patch.bumps ?? bumps;
+    const newWeek = patch.week ?? week;
+    const newSessionDay = patch.sessionDay ?? sessionDay;
     setLog(newLog);
     setBumps(newBumps);
+    if (patch.week !== undefined) setWeek(newWeek);
+    if (patch.sessionDay !== undefined) setSessionDay(newSessionDay);
     try {
-      localStorage.setItem(KEY, JSON.stringify({ log: newLog, bumps: newBumps }));
+      localStorage.setItem(KEY, JSON.stringify({ log: newLog, bumps: newBumps, week: newWeek, sessionDay: newSessionDay }));
     } catch (e) {}
     if (patch.banner !== undefined) setBanner(patch.banner);
     if (patch.view !== undefined) setView(patch.view);
     if (patch.i !== undefined) setI(patch.i);
   };
 
+  const isSessionLocked = sessionDay && sessionDay !== dayKey;
+
   const weekVal = Math.max(1, Math.min(26, Math.round(week)));
   const block = BLOCKS.find(b => weekVal <= b.w) || BLOCKS[BLOCKS.length - 1];
-  const dayKey = new Date().toISOString().slice(0, 10);
 
   const weightFor = (ex) => {
     if (!ex.inc) return null;
@@ -91,12 +100,18 @@ export function GymBuddy() {
   };
 
   const writeSets = (ex, sets, extra) => {
+    if (isSessionLocked) {
+      alert('Session from previous day is locked. Start a new workout.');
+      return;
+    }
+    if (!sessionDay) {
+      save({ sessionDay: dayKey, ...(extra || {}) });
+    }
     const newLog = { ...log };
     newLog[dayKey] = { ...(newLog[dayKey] || {}), [ex.id]: sets };
     save({ log: newLog, ...(extra || {}) });
   };
 
-  // Render values
   const day = log[dayKey] || {};
   const complete = (ex) => {
     const s = day[ex.id];
@@ -113,7 +128,14 @@ export function GymBuddy() {
       sub: block.sets + ' × ' + targetReps(ex) + (ex.hold ? 's each side' : ex.body ? ' each leg' : ''),
       right: done ? '✓' : kg != null ? kg + ' kg' : partial ? partial + '/' + block.sets : '–',
       tint: done ? '#57C08A' : kg != null ? '#F2F4F7' : 'rgba(242,244,247,.35)',
-      open: () => save({ view: 'ex', i: idx, banner: null })
+      open: () => {
+        if (isSessionLocked) {
+          alert('Session from previous day is locked. Start a new workout.');
+          return;
+        }
+        if (!sessionDay) save({ sessionDay: dayKey });
+        save({ view: 'ex', i: idx, banner: null });
+      }
     };
   });
 
@@ -143,7 +165,7 @@ export function GymBuddy() {
     const newLog = { ...log };
     newLog[dayKey] = { ...(newLog[dayKey] || {}), [ex.id]: ns };
     if (earned) newLog[dayKey][bumpKey] = true;
-    save({ log: newLog, bumps: newBumps, banner: newBanner });
+    writeSets(ex, ns, { log: newLog, bumps: newBumps, banner: newBanner });
   };
 
   const tgt = targetReps(ex);
@@ -164,7 +186,6 @@ export function GymBuddy() {
   return (
     <div style={{ minHeight: '100vh', background: '#0C0E11', color: '#F2F4F7', fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontVariantNumeric: 'tabular-nums', display: 'flex', flexDirection: 'column', paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
 
-        {/* Content */}
         <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', position: 'relative' }}>
 
           {view === 'list' && (
@@ -178,11 +199,16 @@ export function GymBuddy() {
                 <div style={{ background: '#15181D', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div style={{ fontSize: '12px', color: 'rgba(242,244,247,.6)', letterSpacing: '.04em' }}>WEEK SELECTOR</div>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button onClick={() => setWeek(Math.max(1, week - 1))} style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#0C0E11', border: 'none', color: '#F2F4F7', cursor: 'pointer', fontSize: '16px' }}>−</button>
+                    <button onClick={() => save({ week: Math.max(1, week - 1) })} style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#0C0E11', border: 'none', color: '#F2F4F7', cursor: 'pointer', fontSize: '16px' }}>−</button>
                     <div style={{ flex: 1, textAlign: 'center', fontSize: '18px', fontWeight: '600' }}>Week {week}</div>
-                    <button onClick={() => setWeek(Math.min(26, week + 1))} style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#0C0E11', border: 'none', color: '#F2F4F7', cursor: 'pointer', fontSize: '16px' }}>+</button>
+                    <button onClick={() => save({ week: Math.min(26, week + 1) })} style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#0C0E11', border: 'none', color: '#F2F4F7', cursor: 'pointer', fontSize: '16px' }}>+</button>
                   </div>
                   <div style={{ fontSize: '11px', color: 'rgba(242,244,247,.4)', textAlign: 'center' }}>Block {block.step} • {block.sets}×{block.reps}</div>
+                  {isSessionLocked && (
+                    <div style={{ fontSize: '11px', color: '#E8B44D', textAlign: 'center', marginTop: '8px', padding: '8px', background: 'rgba(232,180,77,.1)', borderRadius: '8px' }}>
+                      🔒 Yesterday's session locked
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -195,7 +221,7 @@ export function GymBuddy() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {rows.map((r, idx) => (
-                  <div key={idx} onClick={r.open} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', borderRadius: '14px', background: '#15181D', cursor: 'pointer', transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = '#1C2027'} onMouseLeave={(e) => e.currentTarget.style.background = '#15181D'}>
+                  <div key={idx} onClick={r.open} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', borderRadius: '14px', background: '#15181D', cursor: 'pointer', transition: 'background 0.2s', opacity: isSessionLocked ? 0.5 : 1 }} onMouseEnter={(e) => !isSessionLocked && (e.currentTarget.style.background = '#1C2027')} onMouseLeave={(e) => !isSessionLocked && (e.currentTarget.style.background = '#15181D')}>
                     <div style={{ width: '58px', height: '44px', borderRadius: '9px', overflow: 'hidden', flexShrink: 0, background: '#0C0E11' }}>
                       {r.img && <img src={r.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: r.dim }} />}
                     </div>
@@ -287,12 +313,13 @@ export function GymBuddy() {
                   </div>
                 ))}
               </div>
-              <div onClick={() => save({ view: 'list', banner: null })} style={{ marginTop: 'auto', height: '52px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: '500', background: '#15181D', color: 'rgba(242,244,247,.7)', cursor: 'pointer' }}>Back</div>
+              <div onClick={() => {
+                save({ view: 'list', banner: null, sessionDay: null });
+                setShowSettings(false);
+              }} style={{ marginTop: 'auto', height: '52px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', fontWeight: '500', background: '#15181D', color: 'rgba(242,244,247,.7)', cursor: 'pointer' }}>Back to List</div>
             </div>
           )}
         </div>
-
-      </div>
 
       <style>{`
         @keyframes pop {
