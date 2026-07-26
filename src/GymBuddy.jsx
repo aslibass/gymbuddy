@@ -40,6 +40,7 @@ export function GymBuddy() {
   const [showCues, setShowCues] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [sessionDay, setSessionDay] = useState(null);
+  const [showProgress, setShowProgress] = useState(false);
 
   const dayKey = new Date().toISOString().slice(0, 10);
 
@@ -183,6 +184,30 @@ export function GymBuddy() {
   const weekLabel = 'WEEK ' + weekVal;
   const dateLabel = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase();
 
+  // Calculate progress metrics
+  const allDays = Object.keys(log).sort();
+  const totalWorkouts = allDays.length;
+  const firstDay = allDays[0];
+  const lastDay = allDays[allDays.length - 1];
+  const daysSinceStart = firstDay ? Math.floor((new Date(lastDay) - new Date(firstDay)) / (1000 * 60 * 60 * 24)) + 1 : 0;
+  const completionRate = totalWorkouts > 0 ? Math.round((totalWorkouts / daysSinceStart) * 100) : 0;
+
+  const progressMetrics = EX.map(ex => {
+    const startWeight = weightFor(ex);
+    const allBumps = bumps[ex.id] || 0;
+    const maxWeight = startWeight ? ex.start + ex.inc * (block.step - 1 + allBumps) : null;
+    const totalVolume = allDays.reduce((sum, d) => {
+      const dayLog = log[d][ex.id];
+      if (!dayLog) return sum;
+      return sum + dayLog.filter(s => s.done).reduce((dsum, s) => dsum + (s.kg || 0) * s.reps, 0);
+    }, 0);
+    const sessionsCompleted = allDays.filter(d => {
+      const dayLog = log[d][ex.id];
+      return dayLog && dayLog.every(s => s.done);
+    }).length;
+    return { ...ex, startWeight, maxWeight, totalVolume, sessionsCompleted, allBumps };
+  });
+
   return (
     <div style={{ minHeight: '100vh', background: '#0C0E11', color: '#F2F4F7', fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", fontVariantNumeric: 'tabular-nums', display: 'flex', flexDirection: 'column', paddingTop: 'max(16px, env(safe-area-inset-top))' }}>
 
@@ -192,8 +217,44 @@ export function GymBuddy() {
             <div style={{ padding: 'max(16px, env(safe-area-inset-top)) 16px 48px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: '11px', letterSpacing: '.18em', color: 'rgba(242,244,247,.42)' }}>{weekLabel}</div>
-                <div onClick={() => setShowSettings(!showSettings)} style={{ fontSize: '11px', letterSpacing: '.18em', color: 'rgba(242,244,247,.42)', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', background: showSettings ? 'rgba(90,169,230,.2)' : 'transparent' }}>⚙️</div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <div onClick={() => setShowProgress(!showProgress)} style={{ fontSize: '11px', letterSpacing: '.18em', color: 'rgba(242,244,247,.42)', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', background: showProgress ? 'rgba(90,169,230,.2)' : 'transparent' }}>📊</div>
+                  <div onClick={() => setShowSettings(!showSettings)} style={{ fontSize: '11px', letterSpacing: '.18em', color: 'rgba(242,244,247,.42)', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', background: showSettings ? 'rgba(90,169,230,.2)' : 'transparent' }}>⚙️</div>
+                </div>
               </div>
+
+              {showProgress && (
+                <div style={{ background: '#15181D', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '60vh', overflow: 'auto' }}>
+                  <div style={{ fontSize: '12px', color: 'rgba(242,244,247,.6)', letterSpacing: '.04em' }}>OVERALL PROGRESS</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,.1)' }}>
+                      <span style={{ color: 'rgba(242,244,247,.6)' }}>Total Workouts:</span>
+                      <span style={{ fontWeight: '600' }}>{totalWorkouts}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,.1)' }}>
+                      <span style={{ color: 'rgba(242,244,247,.6)' }}>Duration:</span>
+                      <span style={{ fontWeight: '600' }}>{daysSinceStart} days</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '8px', borderBottom: '1px solid rgba(255,255,255,.1)' }}>
+                      <span style={{ color: 'rgba(242,244,247,.6)' }}>Adherence:</span>
+                      <span style={{ fontWeight: '600', color: completionRate >= 80 ? '#57C08A' : completionRate >= 60 ? '#E8B44D' : '#E87B73' }}>{completionRate}%</span>
+                    </div>
+                    <div style={{ marginTop: '8px', fontSize: '11px', color: 'rgba(242,244,247,.4)', fontWeight: '500' }}>EXERCISE PROGRESS</div>
+                    {progressMetrics.map(m => (
+                      <div key={m.id} style={{ fontSize: '11px', padding: '8px', background: '#0C0E11', borderRadius: '8px' }}>
+                        <div style={{ fontWeight: '500', marginBottom: '4px' }}>{m.name}</div>
+                        <div style={{ color: 'rgba(242,244,247,.6)', fontSize: '10px', lineHeight: '1.4' }}>
+                          <div>Started: {m.startWeight} {m.unit} → Now: {m.maxWeight} {m.unit}</div>
+                          <div style={{ color: m.allBumps > 0 ? '#57C08A' : 'rgba(242,244,247,.4)' }}>+{m.allBumps} bump{m.allBumps !== 1 ? 's' : ''}</div>
+                          <div>Volume: {Math.round(m.totalVolume)} {m.unit}×reps</div>
+                          <div>Sessions: {m.sessionsCompleted}/{totalWorkouts}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => window.print()} style={{ marginTop: '8px', width: '100%', padding: '8px', background: '#57C08A', color: '#0C0E11', border: 'none', borderRadius: '8px', fontWeight: '500', fontSize: '12px', cursor: 'pointer' }}>🖨️ Print for Physio</button>
+                </div>
+              )}
 
               {showSettings && (
                 <div style={{ background: '#15181D', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
