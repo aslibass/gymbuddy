@@ -38,6 +38,7 @@ export function GymBuddy() {
   const [week, setWeek] = useState(4);
   const [accent, setAccent] = useState('#5AA9E6');
   const [showCues, setShowCues] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Load from localStorage
   useEffect(() => {
@@ -170,6 +171,22 @@ export function GymBuddy() {
             <div style={{ padding: 'max(16px, env(safe-area-inset-top)) 16px 48px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: '11px', letterSpacing: '.18em', color: 'rgba(242,244,247,.42)' }}>{weekLabel}</div>
+                <div onClick={() => setShowSettings(!showSettings)} style={{ fontSize: '11px', letterSpacing: '.18em', color: 'rgba(242,244,247,.42)', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px', background: showSettings ? 'rgba(90,169,230,.2)' : 'transparent' }}>⚙️</div>
+              </div>
+
+              {showSettings && (
+                <div style={{ background: '#15181D', borderRadius: '12px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ fontSize: '12px', color: 'rgba(242,244,247,.6)', letterSpacing: '.04em' }}>WEEK SELECTOR</div>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button onClick={() => setWeek(Math.max(1, week - 1))} style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#0C0E11', border: 'none', color: '#F2F4F7', cursor: 'pointer', fontSize: '16px' }}>−</button>
+                    <div style={{ flex: 1, textAlign: 'center', fontSize: '18px', fontWeight: '600' }}>Week {week}</div>
+                    <button onClick={() => setWeek(Math.min(26, week + 1))} style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#0C0E11', border: 'none', color: '#F2F4F7', cursor: 'pointer', fontSize: '16px' }}>+</button>
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'rgba(242,244,247,.4)', textAlign: 'center' }}>Block {block.step} • {block.sets}×{block.reps}</div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
                 <div style={{ fontSize: '11px', letterSpacing: '.18em', color: 'rgba(242,244,247,.42)' }}>{dateLabel}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,.08)', paddingBottom: '18px' }}>
